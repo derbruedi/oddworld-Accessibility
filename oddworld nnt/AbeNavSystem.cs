@@ -34,9 +34,6 @@ namespace OddworldAccess
         private static MethodInfo mPostEvent;
         private static float? lockedHeight = null; 
 
-        // Grinder Status
-        private static bool grindersDisabled = false;
-
         // ==========================================================
         // HAUPTSCHLEIFE (UPDATE)
         // ==========================================================
@@ -108,16 +105,11 @@ namespace OddworldAccess
         }
 
         // ==========================================================
-        // ASSISTENTEN (M, G, P, K)
+        // ASSISTENTEN (M)
         // ==========================================================
 
         static void UpdateAssistSystems(Abe abe)
         {
-            // --- HIER WURDE SHRYKULL (Taste G) ENTFERNT ---
-
-            // GRINDER KILLER (Taste K)
-            if (Input.GetKeyDown(KeyCode.K)) ToggleGrinderSafety();
-
             // SCHWEBEN / LEVITATION (Taste M halten)
             MonoBehaviour mover = GetActiveMover(abe);
 
@@ -148,31 +140,6 @@ namespace OddworldAccess
             }
         }
 
-        static void ToggleGrinderSafety()
-        {
-            grindersDisabled = !grindersDisabled;
-            int count = 0;
-            try
-            {
-                if (Grinder.m_lstGrinders != null)
-                {
-                    foreach (var grinder in Grinder.m_lstGrinders)
-                    {
-                        if (grinder == null) continue;
-                        count++;
-                        grinder.enabled = !grindersDisabled;
-                        var colliders = grinder.GetComponentsInChildren<Collider>();
-                        foreach (var c in colliders) c.enabled = !grindersDisabled;
-                        var animators = grinder.GetComponentsInChildren<Animator>();
-                        foreach (var a in animators) a.enabled = !grindersDisabled;
-                    }
-                }
-            }
-            catch(Exception ex) { MelonLogger.Error("Grinder Toggle Error: " + ex.Message); }
-            string state = grindersDisabled ? "Disabled (Safe)" : "Active (Danger)";
-            TolkHelper.Speak($"Grinders {state}. Affected: {count}");
-        }
-
         static void SetGravity(MonoBehaviour character, bool enabled)
         {
             try
@@ -183,56 +150,6 @@ namespace OddworldAccess
             catch {}
         }
 
-        // --- HIER WURDE DIE FUNKTION ActivateShrykullWithSound ENTFERNT ---
-
-        static void TeleportToTarget(Abe abe)
-        {
-            if (CurrentTarget == null) { TolkHelper.Speak("No target."); return; }
-
-            MonoBehaviour mover = GetActiveMover(abe);
-            string moverName = (mover.GetType().Name == "AbeElum") ? "Elum" : "Abe";
-
-            Vector3 tPos = CurrentTarget.transform.position;
-            Vector3 mPos = mover.transform.position;
-            
-            float offset = (tPos.x > mPos.x) ? -1.5f : 1.5f;
-            string tName = CurrentTarget.name.ToLower();
-            if (tName.Contains("door") || tName.Contains("well") || tName.Contains("portal")) offset = 0f;
-
-            float targetY = tPos.y;
-            RaycastHit hit;
-            if (Physics.Raycast(new Vector3(tPos.x + offset, tPos.y + 2f, mPos.z), Vector3.down, out hit, 5f, (floorMask != -1) ? floorMask : 1))
-            {
-                targetY = hit.point.y + 0.1f;
-            }
-
-            Vector3 finalPos = new Vector3(tPos.x + offset, targetY, mPos.z);
-
-            try
-            {
-                var cc = mover.GetComponent<CharacterController>();
-                var rb = mover.GetComponent<Rigidbody>();
-                if (cc) cc.enabled = false;
-                if (rb) { rb.isKinematic = true; rb.velocity = Vector3.zero; }
-
-                mover.transform.position = finalPos;
-                
-                var splineField = AccessTools.Field(mover.GetType(), "m_cSmartSplineController");
-                if (splineField != null) {
-                    object spline = splineField.GetValue(mover);
-                    if (spline != null) {
-                        AccessTools.Method(spline.GetType(), "Search", new Type[]{typeof(bool)}).Invoke(spline, new object[]{true});
-                    }
-                }
-
-                if (rb) rb.isKinematic = false;
-                if (cc) cc.enabled = true;
-
-                TolkHelper.Speak($"Teleported {moverName}");
-            }
-            catch { TolkHelper.Speak("Teleport error"); }
-        }
-
         // ==========================================================
         // INPUT HANDLER
         // ==========================================================
@@ -241,7 +158,7 @@ namespace OddworldAccess
         {
             Vector3 centerPos = GetPosition(realAbe);
 
-            // --- NEU: NAVI SCAN AUF TASTE N ---
+            // --- NAVI SCAN AUF TASTE N ---
             if (Input.GetKeyDown(KeyCode.N))
             {
                 ScanForPaths(centerPos);
@@ -257,7 +174,6 @@ namespace OddworldAccess
             
             // --- INFO ---
             if (Input.GetKeyDown(KeyCode.Y)) SpeakTargetInfo(centerPos);
-            if (Input.GetKeyDown(KeyCode.P)) TeleportToTarget(realAbe);
             
             if (Input.GetKeyDown(KeyCode.F1)) TolkHelper.Speak($"X: {Math.Round(centerPos.x)}, Y: {Math.Round(centerPos.y)}");
             
@@ -269,11 +185,10 @@ namespace OddworldAccess
         }
 
         // ==========================================================
-        // NEU: PFAD-NAVI LOGIK (Findet Pfade im Spline-System)
+        // PFAD-NAVI LOGIK (Findet Pfade im Spline-System)
         // ==========================================================
         static void ScanForPaths(Vector3 abePos)
         {
-            // Wir suchen nach 'BezierSplineGO', das ist die Klasse für Wege im Spiel
             Type splineType = AccessTools.TypeByName("BezierSplineGO");
             if (splineType == null) { TolkHelper.Speak("Error: Spline system not found."); return; }
 
@@ -289,7 +204,6 @@ namespace OddworldAccess
 
                 float dist = Vector3.Distance(splineScript.transform.position, abePos);
                 
-                // Wir suchen nur Pfade in 30 Meter Umkreis
                 if (dist < 30.0f) 
                 {
                     pathCount++;
@@ -303,7 +217,6 @@ namespace OddworldAccess
 
             if (closestPath != null)
             {
-                // Namen säubern für bessere Sprachausgabe
                 string pathName = closestPath.name.Replace("BezierSpline", "Path").Replace("_", " ");
                 TolkHelper.Speak($"Nearest Path: {pathName}. Distance: {Math.Round(minDistance)} meters.");
             }
@@ -375,7 +288,6 @@ namespace OddworldAccess
             float closestDist = float.MaxValue;
             List<GameObject> helpers = new List<GameObject>();
             
-            // Suche nach Hilfsmitteln (Aufzüge, Portale)
             helpers.AddRange(FindAllActive<Elevator>());
             helpers.AddRange(FindAllActive<CargoElevator>());
             helpers.AddRange(FindAllActive<Well>());
