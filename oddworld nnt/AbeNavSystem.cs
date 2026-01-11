@@ -113,8 +113,7 @@ namespace OddworldAccess
 
         static void UpdateAssistSystems(Abe abe)
         {
-            // SHRYKULL (Taste G)
-            if (Input.GetKeyDown(KeyCode.G)) ActivateShrykullWithSound(abe);
+            // --- HIER WURDE SHRYKULL (Taste G) ENTFERNT ---
 
             // GRINDER KILLER (Taste K)
             if (Input.GetKeyDown(KeyCode.K)) ToggleGrinderSafety();
@@ -184,22 +183,7 @@ namespace OddworldAccess
             catch {}
         }
 
-        static void ActivateShrykullWithSound(Abe abe)
-        {
-            try
-            {
-                MethodInfo addCharges = AccessTools.Method(typeof(Abe), "AddShrykullCharges", new Type[] { typeof(int) });
-                if (addCharges != null) addCharges.Invoke(abe, new object[] { 1 });
-
-                if (mPostEvent != null)
-                {
-                    mPostEvent.Invoke(null, new object[] { "Play_shrykrull_ready", abe.gameObject });
-                    mPostEvent.Invoke(null, new object[] { "Play_vox_abe_laugh", abe.gameObject });
-                }
-                TolkHelper.Speak("Shrykull Ready!");
-            }
-            catch { TolkHelper.Speak("Error activating power."); }
-        }
+        // --- HIER WURDE DIE FUNKTION ActivateShrykullWithSound ENTFERNT ---
 
         static void TeleportToTarget(Abe abe)
         {
